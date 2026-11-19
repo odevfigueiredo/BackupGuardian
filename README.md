@@ -31,7 +31,7 @@ O projeto é compatível com **Windows e Linux**, incluindo ambientes Linux no *
 - Criptografia e descriptografia de arquivos com senha usando os comandos `seal` e `unseal`.
 - Interface gráfica com **Tkinter** e acesso por terminal.
 - Operação offline após a instalação das dependências necessárias.
-- Integração com o **Survival Server** para proteger arquivos de backup exportados pelo servidor.
+- Integração com o **[Survival Server](https://github.com/odevfigueiredo/SurvivalServer.git)** para proteger arquivos de backup exportados pelo servidor.
 
 ---
 
@@ -173,11 +173,11 @@ python -m pip install --no-index --find-links ./pacotes -r requirements-crypto.t
 
 ---
 
-## 🔄 Integração com o Survival Server
+## 🔄 Integração com o [Survival Server](https://github.com/odevfigueiredo/SurvivalServer.git)
 
-O Backup Guardian também pode criptografar backups gerados pelo Survival Server.
+O Backup Guardian também pode criptografar backups gerados pelo [Survival Server](https://github.com/odevfigueiredo/SurvivalServer.git).
 
-**1.** Na pasta do Survival Server, gere uma cópia consistente do banco de dados e arquivos:
+**1.** Na pasta do [Survival Server](https://github.com/odevfigueiredo/SurvivalServer.git), gere uma cópia consistente do banco de dados e arquivos:
 
 ```bash
 python server.py backup "../BackupGuardian/backup-survival.zip"
@@ -195,7 +195,7 @@ python backup_guardian.py seal "backup-survival.zip" "E:/Copias/backup-survival.
 python backup_guardian.py unseal "E:/Copias/backup-survival.zip.bgc" "backup-restaurado.zip"
 ```
 
-**4.** Pare o Survival Server e, na pasta dele, restaure o backup:
+**4.** Pare o [Survival Server](https://github.com/odevfigueiredo/SurvivalServer.git) e, na pasta dele, restaure o backup:
 
 ```bash
 python server.py restore "../BackupGuardian/backup-restaurado.zip" --yes
@@ -222,7 +222,7 @@ O workflow de integração contínua `python-ci.yml`, disponível separadamente,
 - Adote a **regra 3-2-1**: três cópias, em dois tipos de mídia, com uma cópia em outro local.
 - Verifique seus snapshots periodicamente e **teste a restauração** antes de depender dos backups.
 - Preserve arquivos sensíveis em formato criptografado ao armazená-los em dispositivos externos.
-- Evite copiar arquivos que estão sendo modificados. Para o Survival Server, utilize o comando próprio de backup.
+- Evite copiar arquivos que estão sendo modificados. Para o [Survival Server](https://github.com/odevfigueiredo/SurvivalServer.git), utilize o comando próprio de backup.
 - Guarde senhas e chaves de recuperação separadamente dos dispositivos de armazenamento.
 
 ---
