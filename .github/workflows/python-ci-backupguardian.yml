@@ -1,0 +1,39 @@
+name: Testes - Backup Guardian
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.10', '3.12']
+
+    steps:
+      - name: Buscar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Instalar dependências de criptografia
+        run: python -m pip install -r requirements-crypto.txt
+
+      - name: Verificar sintaxe dos módulos
+        run: python -m compileall -q backup_guardian.py guardian_gui.py
+
+      - name: Executar testes automatizados
+        run: python -m unittest discover -s tests -v
