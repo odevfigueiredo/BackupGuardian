@@ -123,6 +123,65 @@ class GuardianTests(unittest.TestCase):
 
         self.assertEqual(bg.list_snapshots(vault), [snapshot])
 
+    def test_snapshot_catalog_reads_only_manifest_metadata(self):
+        vault = self.p / 'vault'
+        snapshot, files = bg.create(self.source, vault)
+        manifest = bg.load_manifest(snapshot)
+        renamed = snapshot.with_name('backup movido')
+        snapshot.rename(renamed)
+        shutil.rmtree(renamed / 'arquivos')
+
+        with patch.object(bg, '_inventory', side_effect=AssertionError('leitura do conteúdo')):
+            catalog = bg.snapshot_catalog(vault)
+
+        self.assertEqual(catalog, [{
+            'path': renamed,
+            'source_name': self.source.name,
+            'created_utc': manifest['created_utc'],
+            'files': files,
+            'error': None,
+        }])
+
+    def test_snapshot_catalog_reports_broken_manifests_and_ignores_unrelated_paths(self):
+        vault = self.p / 'vault'
+        snapshot, _ = bg.create(self.source, vault)
+        base = snapshot.parent
+        missing = base / '20000101_000000_000000'
+        missing.mkdir()
+        malformed = base / 'manifesto inválido'
+        malformed.mkdir()
+        (malformed / 'manifest.json').write_text('[]', encoding='utf-8')
+        (base / 'outras pastas').mkdir()
+        (base / '20000101_000000_000001').touch()
+        shutil.copytree(snapshot, base / '.temp_late_stage')
+
+        catalog = bg.snapshot_catalog(vault)
+
+        self.assertEqual([entry['path'] for entry in catalog], [malformed, snapshot, missing])
+        self.assertTrue(catalog[0]['error'])
+        self.assertIsNone(catalog[1]['error'])
+        self.assertIn('ausente', catalog[2]['error'])
+        self.assertEqual(catalog[2]['files'], 0)
+        self.assertEqual(bg.list_snapshots(vault), [snapshot])
+
+    @unittest.skipUnless(os.name == 'nt', 'junções são específicas do Windows')
+    def test_snapshot_catalog_reports_junction_without_following_it(self):
+        vault = self.p / 'vault'
+        snapshot, _ = bg.create(self.source, vault)
+        junction = snapshot.with_name('snapshot de outro local')
+        try:
+            from _winapi import CreateJunction
+
+            CreateJunction(str(snapshot), str(junction))
+        except (ImportError, OSError):
+            self.skipTest('criação de junção indisponível')
+
+        entries = {entry['path']: entry for entry in bg.snapshot_catalog(vault)}
+
+        self.assertIn('junção', entries[junction]['error'])
+        self.assertIsNone(entries[snapshot]['error'])
+        self.assertEqual(bg.list_snapshots(vault), [snapshot])
+
     def test_rejects_malformed_manifest(self):
         snapshot, _ = bg.create(self.source, self.p / 'vault')
         manifest = snapshot / 'manifest.json'

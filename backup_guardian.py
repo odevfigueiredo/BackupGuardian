@@ -21,10 +21,11 @@ import unicodedata
 from itertools import chain
 from pathlib import Path, PurePosixPath
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 FORMAT = 'backup-guardian-snapshot-v1'
 MAGIC = b'BGUARD1\n'
 BLOCK = 1024 * 1024
+SNAPSHOT_ID = re.compile(r'[0-9]{8}_[0-9]{6}_[0-9a-f]{6}')
 WINDOWS_DEVICE = re.compile(r'CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|(?:COM|LPT)[0-9¹²³]', re.I)
 # O bit Name Surrogate identifica redirecionamentos, como junções. Arquivos
 # comuns do OneDrive também podem ser reparse points, com outra tag.
@@ -54,8 +55,12 @@ def safe_rel(raw, *, portable=False):
     return PurePosixPath(raw)
 
 
+def _is_redirect(info):
+    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, 'st_reparse_tag', 0) & REPARSE_NAME_SURROGATE)
+
+
 def _check_type(path, info, *, directory):
-    if stat.S_ISLNK(info.st_mode) or getattr(info, 'st_reparse_tag', 0) & REPARSE_NAME_SURROGATE:
+    if _is_redirect(info):
         raise ValueError(f'Link simbólico ou junção não suportado: {path}')
     expected = stat.S_ISDIR if directory else stat.S_ISREG
     if not expected(info.st_mode):
@@ -363,23 +368,42 @@ def restore(snapshot, target):
             shutil.rmtree(stage)
 
 
-def list_snapshots(vault):
+def snapshot_catalog(vault):
+    """Liste metadados dos snapshots publicados e erros de manifesto sem ler os arquivos copiados."""
     base = Path(vault).expanduser() / 'snapshots'
     try:
         info = base.lstat()
     except FileNotFoundError:
         return []
     _check_type(base, info, directory=True)
-    snapshots = []
-    for path in base.iterdir():
+    catalog = []
+    for path in sorted(base.iterdir(), key=lambda item: item.name, reverse=True):
         if path.name.startswith('.'):
             continue
+        entry = {'path': path, 'source_name': '', 'created_utc': '', 'files': 0, 'error': None}
         try:
-            load_manifest(path)
-        except (OSError, ValueError):
-            continue
-        snapshots.append(path)
-    return sorted(snapshots, reverse=True)
+            info = path.lstat()
+            if not (stat.S_ISDIR(info.st_mode) or _is_redirect(info)):
+                continue
+            manifest = load_manifest(path)
+        except FileNotFoundError:
+            if not SNAPSHOT_ID.fullmatch(path.name):
+                continue
+            entry['error'] = 'Manifesto ausente'
+        except (OSError, ValueError, RecursionError) as error:
+            entry['error'] = str(error)
+        else:
+            for field in ('source_name', 'created_utc'):
+                value = manifest.get(field)
+                if isinstance(value, str):
+                    entry[field] = value
+            entry['files'] = len(manifest['entries'])
+        catalog.append(entry)
+    return catalog
+
+
+def list_snapshots(vault):
+    return sorted((entry['path'] for entry in snapshot_catalog(vault) if entry['error'] is None), reverse=True)
 
 
 def _crypto():
